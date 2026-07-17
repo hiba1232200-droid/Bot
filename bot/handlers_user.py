@@ -3162,12 +3162,22 @@ async def cb_syriatel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await is_banned(update):
         return ConversationHandler.END
 
-    text = (
-        "📱 *سيرياتيل كاش*\n\n"
-        f"الرقم: `{config.SYRIATEL_CASH_NUMBER}`\n\n"
-        "اشحن الرصيد المطلوب على الرقم التالي عبر التحويل اليدوي حصراً، "
-        "ومن ثم أدخل رقم العملية (Transaction ID) من التطبيق."
-    )
+    _syr_nums = config.get_syriatel_numbers()
+    if len(_syr_nums) > 1:
+        _nums_txt = "\n".join(f"• `{n}`" for n in _syr_nums)
+        text = (
+            "📱 *سيرياتيل كاش*\n\n"
+            "حوّل على أحد الأرقام التالية عبر *التحويل اليدوي حصراً*:\n"
+            f"{_nums_txt}\n\n"
+            "ثم أدخل رقم العملية (Transaction ID) من التطبيق."
+        )
+    else:
+        text = (
+            "📱 *سيرياتيل كاش*\n\n"
+            f"الرقم: `{config.SYRIATEL_CASH_NUMBER}`\n\n"
+            "اشحن الرصيد المطلوب على الرقم التالي عبر التحويل اليدوي حصراً، "
+            "ومن ثم أدخل رقم العملية (Transaction ID) من التطبيق."
+        )
     await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb.cancel_inline())
     return SYRIATEL_TX_CODE
 

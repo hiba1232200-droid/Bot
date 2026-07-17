@@ -20,6 +20,19 @@ if _db_dir:
     os.makedirs(_db_dir, exist_ok=True)
 
 SYRIATEL_CASH_NUMBER = "0982493924"
+# رقم سيرياتيل الثاني (اختياري) — للعرض والتحقق التلقائي على الرقمين
+SYRIATEL_CASH_NUMBER_2 = os.environ.get("SYRIATEL_CASH_NUMBER_2", "0939126779")
+
+def get_syriatel_numbers():
+    """يرجع كل أرقام سيرياتيل المفعّلة (الأساسي + الثاني إن وُجد)."""
+    nums = []
+    n1 = (SYRIATEL_CASH_NUMBER or "").strip()
+    n2 = (SYRIATEL_CASH_NUMBER_2 or "").strip()
+    if n1:
+        nums.append(n1)
+    if n2 and n2 != n1:
+        nums.append(n2)
+    return nums
 
 # محفظة USDT — BSC BEP20 (يمكن تعديلها من لوحة الأدمن أو من هنا مباشرة)
 USDT_WALLET_BEP20 = os.environ.get("USDT_WALLET_BEP20", "")

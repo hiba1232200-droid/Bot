@@ -211,24 +211,37 @@ def find_matching_transaction(tx_code: str,
     if not target:
         return None
 
-    q = query or _get_number()
+    # إذا مرّر رقم محدد نستخدمه، وإلا نجرّب كل الأرقام المفعّلة (الأساسي + الثاني)
+    if query:
+        numbers_to_try = [query]
+    else:
+        try:
+            numbers_to_try = config.get_syriatel_numbers()
+        except Exception:
+            numbers_to_try = [_get_number()]
+        if not numbers_to_try:
+            numbers_to_try = [_get_number()]
 
-    try:
-        data = _request({
-            "resource": "syriatel",
-            "action":   "find_tx",
-            "tx":       target,
-            "gsm":      q,
-            "period":   period,
-        })
-    except SyriatelCashError as e:
-        logger.warning(f"find_tx error: {e}")
-        return None
+    data = None
+    for q in numbers_to_try:
+        try:
+            data = _request({
+                "resource": "syriatel",
+                "action":   "find_tx",
+                "tx":       target,
+                "gsm":      q,
+                "period":   period,
+            })
+        except SyriatelCashError as e:
+            logger.warning(f"find_tx error (gsm={q}): {e}")
+            continue
 
-    logger.info(f"find_tx response: found={data.get('found')} data_keys={list(data.keys())}")
+        logger.info(f"find_tx response (gsm={q}): found={data.get('found')} data_keys={list(data.keys())}")
+        if data.get("found"):
+            break  # لقيناه على هذا الرقم — نكمّل تحت
 
-    if not data.get("found"):
-        logger.info(f"Syriatel tx {target} NOT FOUND → رفض")
+    if not data or not data.get("found"):
+        logger.info(f"Syriatel tx {target} NOT FOUND على كل الأرقام → رفض")
         return None
 
     tx = data.get("transaction", {})
