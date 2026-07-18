@@ -3242,6 +3242,8 @@ async def msg_syriatel_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Syriatel auto-verify error: {e}")
 
     if verified:
+        # المبلغ المضاف = المبلغ المحوّل × المعامل (مثلاً 150 → 15000)
+        amount = amount * config.DEPOSIT_AMOUNT_MULTIPLIER
         # ✅ أضف الرصيد فوراً
         db.add_balance(user_id, amount)
         req_id = db.create_recharge_request(user_id, "syriatel", amount, transaction_code=tx)
@@ -3423,6 +3425,7 @@ async def cb_syriatel_verify(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     try:
+        expected_amount = expected_amount * config.DEPOSIT_AMOUNT_MULTIPLIER
         new_state = db.update_balance(user_id, expected_amount, count_as_recharge=True)
         db.update_recharge_status(req_id, "approved")
     except Exception as credit_err:
@@ -3591,6 +3594,8 @@ async def msg_shamcash_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"ShamCash auto-verify error: {e}")
 
     if verified:
+        # المبلغ المضاف = المبلغ المحوّل × المعامل
+        amount = amount * config.DEPOSIT_AMOUNT_MULTIPLIER
         db.add_balance(user_id, amount)
         req_id = db.create_recharge_request(user_id, "shamcash", amount, transaction_code=tx)
         bonus  = await _apply_deposit_bonus(context, user_id, amount)
@@ -3725,6 +3730,7 @@ async def cb_shamcash_verify(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     db.update_recharge_status(req_id, "approved")
+    expected_amount = expected_amount * config.DEPOSIT_AMOUNT_MULTIPLIER
     new_state = db.update_balance(user_id, expected_amount, count_as_recharge=True)
     await apply_referral_commission(
         context.bot, user_id, float(expected_amount),
@@ -3923,6 +3929,7 @@ async def cb_shamcash_usd_verify(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     db.update_recharge_status(req_id, "approved")
+    syp_credit = syp_credit * config.DEPOSIT_AMOUNT_MULTIPLIER
     new_state = db.update_balance(user_id, syp_credit, count_as_recharge=True)
     await apply_referral_commission(
         context.bot, user_id, float(syp_credit),
@@ -4297,6 +4304,8 @@ async def msg_usdt_tx_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount_syp  = amount * syp_per_usd
 
     if verified:
+        # المبلغ المضاف = القيمة بالليرة × المعامل
+        amount_syp = amount_syp * config.DEPOSIT_AMOUNT_MULTIPLIER
         # ✅ أضف الرصيد فوراً
         db.add_balance(user_id, amount_syp)
         req_id = db.create_recharge_request(

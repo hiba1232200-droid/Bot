@@ -1399,11 +1399,11 @@ async def cb_admin_recharge_decision(update: Update, context: ContextTypes.DEFAU
         # تحويل العملة إذا كانت الطريقة "شام كاش دولار"
         is_usd = req.get("method") == "shamcash_usd"
         if is_usd:
-            credit_syp = float(req["amount"]) * config.get_usd_to_syp()
+            credit_syp = float(req["amount"]) * config.get_usd_to_syp() * config.DEPOSIT_AMOUNT_MULTIPLIER
             user_msg_amount = f"*{req['amount']:.2f} $* (≈ {credit_syp:,.0f} ل.س)"
             caption_amount = f"{req['amount']:.2f} $ ≈ {credit_syp:,.0f} ل.س"
         else:
-            credit_syp = float(req["amount"])
+            credit_syp = float(req["amount"]) * config.DEPOSIT_AMOUNT_MULTIPLIER
             user_msg_amount = f"*{credit_syp:.0f}* ل.س"
             caption_amount = f"{credit_syp:.0f} ل.س"
         result = db.update_balance(req["user_id"], credit_syp, count_as_recharge=True)

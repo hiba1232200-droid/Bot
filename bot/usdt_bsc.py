@@ -137,7 +137,7 @@ async def check_usdt_deposits(context) -> None:
         if verified:
             db.delete_setting(key)
             syp_per_usd = config.get_usd_to_syp()
-            amount_syp  = amount * syp_per_usd
+            amount_syp  = amount * syp_per_usd * config.DEPOSIT_AMOUNT_MULTIPLIER
             try:
                 db.add_balance(user_id, amount_syp)
                 req_id = db.create_recharge_request(

@@ -19,6 +19,11 @@ _db_dir = os.path.dirname(DB_PATH)
 if _db_dir:
     os.makedirs(_db_dir, exist_ok=True)
 
+# معامل ضرب مبلغ الإيداع بعد نجاح التحقق.
+# مثال: المبلغ المحوّل 150 → يُضاف للرصيد 15000 (150 × 100)
+# ينطبق على كل طرق الإيداع (سيرياتيل، شام كاش، USDT).
+DEPOSIT_AMOUNT_MULTIPLIER = float(os.environ.get("DEPOSIT_AMOUNT_MULTIPLIER", "100"))
+
 SYRIATEL_CASH_NUMBER = "0982493924"
 # رقم سيرياتيل الثاني (اختياري) — للعرض والتحقق التلقائي على الرقمين
 SYRIATEL_CASH_NUMBER_2 = os.environ.get("SYRIATEL_CASH_NUMBER_2", "0939126779")
