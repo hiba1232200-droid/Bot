@@ -477,6 +477,17 @@ def set_balance(user_id: int, new_balance: float):
         conn.commit()
 
 
+def add_balance(user_id: int, delta: float, count_as_recharge: bool = None):
+    """يزيد (أو ينقص لو delta سالب) رصيد المستخدم بمقدار delta.
+    غلاف حول update_balance ليتوافق مع الاستدعاءات في باقي الكود.
+    - count_as_recharge: لو None يُحسب تلقائياً (المبالغ الموجبة تُعتبر شحن).
+    """
+    if count_as_recharge is None:
+        # المبالغ الموجبة (شحن/بونص) تُحتسب كإيداع؛ السالبة (خصم/شراء) لا.
+        count_as_recharge = delta > 0
+    return update_balance(user_id, delta, count_as_recharge=count_as_recharge)
+
+
 def create_recharge_request(user_id: int, method: str, amount: float,
                              transaction_code: Optional[str] = None,
                              photo_file_id: Optional[str] = None) -> int:
