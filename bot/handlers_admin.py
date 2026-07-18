@@ -1644,17 +1644,42 @@ async def msg_admin_codes_input(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def _show_profit_panel(q) -> None:
-    """يعرض قائمة فترات الأرباح."""
+    """يعرض ملخص أرباح اليوم مباشرة + قائمة الفترات."""
+    summary = ""
+    try:
+        from datetime import datetime as _dt
+        _now = _dt.utcnow()
+        _midnight = _dt(_now.year, _now.month, _now.day, 0, 0, 0).isoformat()
+        st = await asyncio.to_thread(db.get_sales_stats_since, _midnight)
+        rev = float(st.get("total_revenue_syp") or 0)
+        cost_usd = float(st.get("total_cost_usd") or 0)
+        rate = config.get_usd_to_syp()
+        cost_syp = cost_usd * rate
+        net = rev - cost_syp
+        margin = (net / rev * 100.0) if rev > 0 else 0.0
+        sign = "🟢" if net >= 0 else "🔴"
+        summary = (
+            "📅 *اليوم حتى الآن:*\n"
+            f"   📦 طلبات منفّذة: *{st.get('completed', 0)}*\n"
+            f"   💰 مبيعات: *{rev:,.0f} ل.س*\n"
+            f"   💸 تكلفة: *{cost_syp:,.0f} ل.س* ({cost_usd:.2f} $)\n"
+            f"   {sign} *صافي الربح: {net:,.0f} ل.س*  ({margin:.1f}%)\n\n"
+        ).replace(",", "،")
+    except Exception as e:
+        logger.warning("profit panel summary failed: %s", e)
+        summary = "_تعذّر حساب ملخص اليوم حالياً._\n\n"
+
     text = (
         "💵 *تقارير الأرباح*\n"
         "━━━━━━━━━━━━━━━━━\n\n"
-        "اختر الفترة لعرض الربح الصافي:\n\n"
+        + summary +
+        "━━━━━━━━━━━━━━━━━\n"
+        "اختر فترة لتقرير مفصّل:\n\n"
         "📅 *اليوم* — منذ منتصف الليل (UTC)\n"
         "📆 *آخر 7 أيام* — أسبوع كامل\n"
         "🗓 *آخر 30 يوم* — شهر كامل\n"
         "🏆 *كل الفترة* — منذ بداية تشغيل البوت\n\n"
-        "━━━━━━━━━━━━━━━━━\n"
-        "_التقرير يحسب: المبيعات − (التكلفة بالدولار × سعر شحن الدولار)._"
+        "_الحساب: المبيعات − (التكلفة بالدولار × سعر شحن الدولار)._"
     )
     await q.edit_message_text(text, reply_markup=kb.admin_profit_panel(), parse_mode=ParseMode.MARKDOWN)
 
@@ -1663,6 +1688,28 @@ async def _show_rates_panel(q) -> None:
     """يعرض شاشة سعر الصرف الحالي مع أزرار التعديل."""
     syp_per_usd = config.get_syp_per_usd()
     usd_to_syp = config.get_usd_to_syp()
+    try:
+        margin_pct = config.get_profit_margin() * 100
+    except Exception:
+        margin_pct = 0.0
+
+    # الفرق بين سعر التسعير وسعر الشحن = هامشك الفعلي على كل دولار
+    spread = syp_per_usd - usd_to_syp
+    spread_pct = (spread / usd_to_syp * 100.0) if usd_to_syp > 0 else 0.0
+
+    if spread > 0:
+        status = (
+            f"🟢 *الوضع سليم* — تربح `{spread:,.0f} ل.س` على كل دولار "
+            f"({spread_pct:+.1f}%)"
+        )
+    elif spread == 0:
+        status = "🟡 *تنبيه* — سعر التسعير = سعر الشحن، يعني ما في هامش على الصرف."
+    else:
+        status = (
+            f"🔴 *خطر: تبيع بخسارة!* — سعر التسعير أقل من سعر الشحن بـ "
+            f"`{abs(spread):,.0f} ل.س` على كل دولار. ارفع سعر تسعير العروض فوراً."
+        )
+
     text = (
         "💱 *إدارة سعر الصرف*\n"
         "━━━━━━━━━━━━━━━━━\n\n"
@@ -1672,10 +1719,10 @@ async def _show_rates_panel(q) -> None:
         f"💵 *سعر شحن الدولار:*\n"
         f"   `1 $ = {usd_to_syp:,.0f} ل.س`\n"
         "   _يُستخدم لتحويل مبالغ شام كاش دولار إلى رصيد._\n\n"
+        f"📈 *هامش الربح المطبَّق:* `{margin_pct:.1f}%`\n\n"
         "━━━━━━━━━━━━━━━━━\n"
-        "💡 *نصيحة:* اضبط سعر تسعير العروض أعلى من سعر شحن الدولار "
-        "لتحقق هامش ربح على كل عملية بيع."
-    )
+        f"{status}"
+    ).replace(",", "،")
     await q.edit_message_text(text, reply_markup=kb.admin_rates_panel(), parse_mode=ParseMode.MARKDOWN)
 
 
@@ -2401,142 +2448,9 @@ async def cb_admin_today_report(update: Update, context: ContextTypes.DEFAULT_TY
     text = f"📈 **تقرير اليوم:**\n\nطلبات: {stats.get('orders_today', 0)}\nإيرادات: {stats.get('revenue_today', 0):,.0f} ل.س"
     await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
 
-async def cb_admin_profit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """الأرباح."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    stats = await asyncio.to_thread(db.get_stats)
-    text = f"💵 **الأرباح الكلية:**\n\n{stats.get('total_revenue', 0):,.0f} ل.س"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_rates(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """سعر الصرف."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "💱 **سعر الصرف:**\n\n1 USD = 88,500 SYP"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_syriatel_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """رصيد سيرياتيل."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "📱 **رصيد سيرياتيل:**\n\nالتفاصيل متوفرة من apisyria.com"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_shamcash_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """رصيد شام كاش."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "💚 **رصيد شام كاش:**\n\nالتفاصيل متوفرة من apisyria.com"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """المخزون."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    disabled = await asyncio.to_thread(db.list_disabled_products)
-    text = f"📦 **المخزون:**\n\nمنتجات معطّلة: {len(disabled)}"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_supplier(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """حالة FastCard API."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "💼 **FastCard API:**\n\n✅ متصل وشغّال"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_profit_margin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """هامش الربح."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = f"📊 **هامش الربح:**\n\n{config.PROFIT_MARGIN*100:.0f}%"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_prices(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تعديل الأسعار."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "💲 **تعديل الأسعار:** استخدم /admin_help"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_price_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """فحص أسعار FastCard."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "🔍 **فحص الأسعار:** سيشتغل تلقائياً يومياً"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_search_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """بحث مستخدم."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "🔍 **بحث مستخدم:** استخدم /check_balance [USER_ID]"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_edit_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تعديل رصيد."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "✏️ **تعديل الرصيد:** استخدم /add_balance أو /subtract_balance"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_toggle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """حظر/فك حظر."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "🚫 **حظر مستخدم:** استخدم /block_user [USER_ID]"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_top_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """أفضل الزبائن."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    await cb_admin_users(update, context)
-
-async def cb_admin_ratings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """التقييمات."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "⭐ **التقييمات:** يُحفظ من استجابة المستخدمين"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
-async def cb_admin_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قناة التوثيق."""
-    q = update.callback_query
-    await q.answer()
-    if not is_admin(update):
-        return
-    text = "📡 **قناة التوثيق:** اضغط /support"
-    await q.edit_message_text(text, parse_mode='Markdown', reply_markup=kb.admin_panel())
-
+# ملاحظة: حُذفت هنا دوال بديلة قديمة (cb_admin_profit / cb_admin_rates / ...)
+# كانت غير مستخدمة إطلاقاً (كل أزرار ^admin: تذهب إلى cb_admin_panel)،
+# وكانت تعرض قيماً ثابتة غير حقيقية (سعر صرف ثابت، "FastCard متصل" دائماً).
 
 
 def register_admin_handlers(app):
