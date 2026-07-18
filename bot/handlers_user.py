@@ -32,6 +32,7 @@ from .shamcash import (
     COIN_USD,
 )
 from . import syriatel_cash
+from . import shared_tx
 from .syriatel_cash import SyriatelCashError
 
 logger = logging.getLogger(__name__)
@@ -3243,7 +3244,15 @@ async def msg_syriatel_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if verified:
         # 🔒 حجز رقم العملية قبل أي إضافة رصيد — يمنع استخدام نفس الرقم مرتين
+        _dup = False
         if not await asyncio.to_thread(db.claim_tx_code, tx, "syriatel", user_id, amount):
+            _dup = True
+        else:
+            # 🔗 فحص مشترك مع قاعدة الموقع (يمنع استخدام نفس الرقم في الموقع والبوت)
+            _shared = await asyncio.to_thread(shared_tx.claim, tx, "bot:syriatel", str(user_id), amount)
+            if _shared is False:
+                _dup = True
+        if _dup:
             await wait_msg.edit_text(
                 "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
                 "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
@@ -3606,7 +3615,14 @@ async def msg_shamcash_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if verified:
         # 🔒 حجز رقم العملية قبل أي إضافة رصيد
+        _dup = False
         if not await asyncio.to_thread(db.claim_tx_code, tx, "shamcash", user_id, amount):
+            _dup = True
+        else:
+            _shared = await asyncio.to_thread(shared_tx.claim, tx, "bot:shamcash", str(user_id), amount)
+            if _shared is False:
+                _dup = True
+        if _dup:
             await wait_msg.edit_text(
                 "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
                 "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
@@ -4327,7 +4343,14 @@ async def msg_usdt_tx_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if verified:
         # 🔒 حجز hash العملية قبل أي إضافة رصيد
+        _dup = False
         if not await asyncio.to_thread(db.claim_tx_code, tx_hash, "usdt", user_id, amount_syp):
+            _dup = True
+        else:
+            _shared = await asyncio.to_thread(shared_tx.claim, tx_hash, "bot:usdt", str(user_id), amount_syp)
+            if _shared is False:
+                _dup = True
+        if _dup:
             await wait_msg.edit_text(
                 "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
                 "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
