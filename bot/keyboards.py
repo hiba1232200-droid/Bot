@@ -744,6 +744,7 @@ def admin_panel() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("💵 الأرباح", callback_data="admin:profit"),
+            InlineKeyboardButton("💱 الصرف (عرض)", callback_data="admin:rates"),
         ],
         [
             InlineKeyboardButton("📱 رصيد سيرياتيل", callback_data="admin:syriatel_balance"),
