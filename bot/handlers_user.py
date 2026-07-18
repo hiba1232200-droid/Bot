@@ -1512,7 +1512,10 @@ async def _send_fastcard_list(q, prefix: str):
                         {
                             "id": f"fc_{p['id']}",
                             "label": p["name"],
-                            "price": int(float(p.get("price", 0)) * config.get_usd_to_syp() * (1 + float(os.environ.get("PROFIT_MARGIN", "0.15")))),
+                            "price": config.round_up_to_500(
+                                float(p.get("price", 0)) * config.get_syp_per_usd()
+                                * (1 + config.get_profit_margin())
+                            ),
                             "product_id": p["id"],
                             "cost_usd": float(p.get("price", 0)),
                             "manual_price": False,
