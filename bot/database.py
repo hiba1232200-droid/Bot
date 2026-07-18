@@ -77,6 +77,17 @@ def init_db():
                 consumed_at TEXT
             )
         """)
+        # جدول موحّد لأرقام العمليات كنص خام (نفس صيغة الموقع)
+        # يمنع تكرار نفس رقم العملية داخل البوت، ويسمح للموقع بالاستعلام عنه.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS used_tx_codes (
+                tx_code TEXT PRIMARY KEY,
+                source TEXT,
+                user_id INTEGER,
+                amount REAL,
+                used_at TEXT
+            )
+        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS uc_codes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1161,6 +1172,41 @@ def consume_transaction(transaction_id: int, user_id: int, amount: float) -> boo
             cur.execute(
                 "INSERT INTO consumed_transactions (transaction_id, user_id, amount, consumed_at) VALUES (?, ?, ?, ?)",
                 (transaction_id, user_id, amount, now_iso()),
+            )
+            conn.commit()
+            return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def _norm_tx(tx_code) -> str:
+    """توحيد صيغة رقم العملية (نفس ما يخزّنه الموقع): نص مشذّب بدون فراغات."""
+    return str(tx_code or "").strip()
+
+
+def is_tx_code_used(tx_code) -> bool:
+    """هل رقم العملية (نص خام) مستخدم مسبقاً في البوت؟"""
+    code = _norm_tx(tx_code)
+    if not code:
+        return False
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM used_tx_codes WHERE tx_code = ?", (code,))
+        return cur.fetchone() is not None
+
+
+def claim_tx_code(tx_code, source: str, user_id: int, amount: float) -> bool:
+    """يحجز رقم العملية بشكل ذرّي. يرجع False إذا كان محجوزاً مسبقاً."""
+    code = _norm_tx(tx_code)
+    if not code:
+        return False
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO used_tx_codes (tx_code, source, user_id, amount, used_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (code, source, user_id, amount, now_iso()),
             )
             conn.commit()
             return True
