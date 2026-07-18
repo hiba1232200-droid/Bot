@@ -1710,6 +1710,34 @@ async def _show_rates_panel(q) -> None:
             f"`{abs(spread):,.0f} ل.س` على كل دولار. ارفع سعر تسعير العروض فوراً."
         )
 
+    # تشخيص: من وين جايين هالقيم؟
+    try:
+        from . import shared_tx as _sx
+        if not _sx.is_enabled():
+            src = "🔴 *غير مرتبط بالموقع* — `SITE_DATABASE_URL` غير مضبوط.\n   البوت يستخدم قيمه المحلية."
+        else:
+            _r = _sx.get_site_setting("usd_rate")
+            _p = _sx.get_site_setting("profit_percent")
+            if _r in (None, "") and _p in (None, ""):
+                src = ("🟡 *مرتبط بالموقع لكن لم تُقرأ أي قيمة.*\n"
+                       "   تأكد أن الرابط يشير لقاعدة الموقع (وليس البوت).")
+            else:
+                src = (f"🟢 *مقروء من الموقع:*\n"
+                       f"   `usd_rate = {_r}`\n"
+                       f"   `profit_percent = {_p}`")
+    except Exception as _e:
+        src = f"⚠️ تعذّر فحص الارتباط: `{_e}`"
+
+    # عدد الأسعار اليدوية التي تتجاوز الحساب التلقائي
+    try:
+        _ov = await asyncio.to_thread(db.count_price_overrides)
+    except Exception:
+        _ov = None
+    ov_txt = ""
+    if _ov:
+        ov_txt = (f"\n\n⚠️ *يوجد {_ov} سعر يدوي محفوظ* — هذي الأسعار "
+                  "لا تتأثر بسعر الصرف إطلاقاً. امسحها إذا بدك الأسعار تتبع السعر تلقائياً.")
+
     text = (
         "💱 *سعر الصرف* (للعرض فقط)\n"
         "━━━━━━━━━━━━━━━━━\n\n"
@@ -1720,8 +1748,9 @@ async def _show_rates_panel(q) -> None:
         f"📈 *هامش الربح المطبَّق:* `{margin_pct:.1f}%`\n\n"
         "━━━━━━━━━━━━━━━━━\n"
         f"{status}\n\n"
-        "🔗 *تُدار هذه القيم من لوحة أدمن الموقع فقط،* "
-        "والبوت يقرأها تلقائياً حتى تبقى موحّدة في الاثنين."
+        "━━━━━━━━━━━━━━━━━\n"
+        f"{src}"
+        f"{ov_txt}"
     ).replace(",", "،")
     await q.edit_message_text(text, reply_markup=kb.back_to_admin(), parse_mode=ParseMode.MARKDOWN)
 

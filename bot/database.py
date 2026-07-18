@@ -287,6 +287,14 @@ def delete_price_override(offer_id: str) -> None:
         conn.commit()
 
 
+def count_price_overrides() -> int:
+    """عدد الأسعار اليدوية المحفوظة (التي تتجاوز الحساب التلقائي)."""
+    try:
+        return len(list_price_overrides())
+    except Exception:
+        return 0
+
+
 def list_price_overrides() -> Dict[str, int]:
     """يرجع dict {offer_id: price} لكل الأسعار اليدوية المحفوظة."""
     out: Dict[str, int] = {}
