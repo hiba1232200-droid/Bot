@@ -36,6 +36,21 @@ class _HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        # نقطة فحص/حجز رقم العملية (يناديها الموقع لمنع تكرار نفس التحويل)
+        if path.path == "/api/tx-check":
+            try:
+                from .check_api import handle_tx_check
+                code, obj = handle_tx_check(path.query)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"tx-check route error: {e}")
+                code, obj = 200, {"ok": False, "soft": True, "msg": "تعذّر الفحص حالياً"}
+            body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         # health check
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")

@@ -3242,6 +3242,17 @@ async def msg_syriatel_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Syriatel auto-verify error: {e}")
 
     if verified:
+        # 🔒 حجز رقم العملية قبل أي إضافة رصيد — يمنع استخدام نفس الرقم مرتين
+        if not await asyncio.to_thread(db.claim_tx_code, tx, "syriatel", user_id, amount):
+            await wait_msg.edit_text(
+                "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
+                "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
+                "إذا كنت تعتقد أن هناك خطأ، تواصل مع الدعم.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb.back_to_main(),
+            )
+            context.user_data.pop("syriatel_tx", None)
+            return ConversationHandler.END
         # المبلغ المضاف = المبلغ المحوّل × المعامل (مثلاً 150 → 15000)
         amount = amount * config.DEPOSIT_AMOUNT_MULTIPLIER
         # ✅ أضف الرصيد فوراً
@@ -3594,6 +3605,17 @@ async def msg_shamcash_amount(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"ShamCash auto-verify error: {e}")
 
     if verified:
+        # 🔒 حجز رقم العملية قبل أي إضافة رصيد
+        if not await asyncio.to_thread(db.claim_tx_code, tx, "shamcash", user_id, amount):
+            await wait_msg.edit_text(
+                "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
+                "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
+                "إذا كنت تعتقد أن هناك خطأ، تواصل مع الدعم.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb.back_to_main(),
+            )
+            context.user_data.pop("shamcash_tx", None)
+            return ConversationHandler.END
         # المبلغ المضاف = المبلغ المحوّل × المعامل
         amount = amount * config.DEPOSIT_AMOUNT_MULTIPLIER
         db.add_balance(user_id, amount)
@@ -4304,6 +4326,16 @@ async def msg_usdt_tx_hash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount_syp  = amount * syp_per_usd
 
     if verified:
+        # 🔒 حجز hash العملية قبل أي إضافة رصيد
+        if not await asyncio.to_thread(db.claim_tx_code, tx_hash, "usdt", user_id, amount_syp):
+            await wait_msg.edit_text(
+                "⚠️ *رقم العملية هذا مستخدم مسبقاً*\n\n"
+                "تم استخدام هذا التحويل من قبل ولا يمكن استخدامه مرة أخرى.\n"
+                "إذا كنت تعتقد أن هناك خطأ، تواصل مع الدعم.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb.back_to_main(),
+            )
+            return ConversationHandler.END
         # المبلغ المضاف = القيمة بالليرة × المعامل
         amount_syp = amount_syp * config.DEPOSIT_AMOUNT_MULTIPLIER
         # ✅ أضف الرصيد فوراً

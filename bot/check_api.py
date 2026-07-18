@@ -31,6 +31,42 @@ def _try_check(player, product_id):
     return None, res
 
 
+def handle_tx_check(query_string: str):
+    """
+    يجيب على سؤال الموقع: هل رقم العملية هذا مستخدم في البوت؟
+    GET /api/tx-check?secret=...&tx=600123456789[&claim=1&source=site]
+
+    - بدون claim: فحص فقط  → {"ok":true,"used":true|false}
+    - مع claim=1: يفحص ويحجز الرقم ذرّياً لصالح الموقع
+                  → {"ok":true,"used":false,"claimed":true} إذا نجح الحجز
+    """
+    q = parse_qs(query_string or "")
+    secret = (q.get("secret", [""])[0]).strip()
+    tx = (q.get("tx", [""])[0]).strip()
+    claim = q.get("claim", [""])[0] == "1"
+    source = (q.get("source", ["site"])[0]).strip() or "site"
+
+    expected = (CHECK_API_SECRET or "").strip()
+    if expected and secret != expected:
+        return 403, {"ok": False, "msg": "unauthorized"}
+
+    if not tx:
+        return 200, {"ok": False, "msg": "tx مفقود"}
+
+    try:
+        from . import database as db
+        if claim:
+            claimed = db.claim_tx_code(tx, source, 0, 0.0)
+            # claimed=False يعني الرقم محجوز مسبقاً (مستخدم)
+            return 200, {"ok": True, "used": (not claimed), "claimed": claimed}
+        used = db.is_tx_code_used(tx)
+        return 200, {"ok": True, "used": used}
+    except Exception as e:
+        logger.warning(f"tx-check error: {e}")
+        # soft=True: الموقع يقرر (الأفضل ألا يرفض إيداعاً صحيحاً بسبب عطل مؤقت)
+        return 200, {"ok": False, "soft": True, "msg": "تعذّر الفحص حالياً"}
+
+
 def handle_check_player(query_string: str):
     """
     يعالج طلب التحقق. يرجّع (status_code, dict).
