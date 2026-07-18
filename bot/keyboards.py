@@ -744,7 +744,6 @@ def admin_panel() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("💵 الأرباح", callback_data="admin:profit"),
-            InlineKeyboardButton("💱 سعر الصرف", callback_data="admin:rates"),
         ],
         [
             InlineKeyboardButton("📱 رصيد سيرياتيل", callback_data="admin:syriatel_balance"),
@@ -761,7 +760,6 @@ def admin_panel() -> InlineKeyboardMarkup:
         # ── 🏷 الأسعار ──
         [InlineKeyboardButton("━━━━ 🏷 الأسعار ━━━━", callback_data="admin:noop")],
         [
-            InlineKeyboardButton("📊 هامش الربح %", callback_data="admin:profit_margin"),
             InlineKeyboardButton("💲 تعديل الأسعار", callback_data="admin:prices"),
         ],
         [InlineKeyboardButton("🔍 فحص أسعار FastCard", callback_data="admin:price_check")],

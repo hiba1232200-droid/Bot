@@ -93,7 +93,15 @@ DEFAULT_USD_TO_SYP = float(os.environ.get("USD_TO_SYP", "13100"))
 
 
 def get_syp_per_usd() -> float:
-    """سعر صرف الدولار المستخدم في تسعير العروض. يُقرأ من DB إذا تم ضبطه من لوحة الأدمن."""
+    """سعر صرف الدولار المستخدم في تسعير العروض.
+    الأولوية: إعدادات الموقع (usd_rate) ← ثم قاعدة البوت ← ثم الافتراضي."""
+    try:
+        from . import shared_tx as _sx
+        v = _sx.get_site_setting("usd_rate")
+        if v not in (None, ""):
+            return max(0.0001, float(v))
+    except Exception:
+        pass
     try:
         from . import database as _db
         val = _db.get_setting("syp_per_usd")
@@ -105,7 +113,16 @@ def get_syp_per_usd() -> float:
 
 
 def get_profit_margin() -> float:
-    """هامش الربح المطبّق على العروض. يُقرأ من DB إذا تم ضبطه من لوحة الأدمن."""
+    """هامش الربح المطبّق على العروض (كسر: 0.10 = 10%).
+    الأولوية: إعدادات الموقع (profit_percent) ← ثم قاعدة البوت ← ثم الافتراضي."""
+    try:
+        from . import shared_tx as _sx
+        v = _sx.get_site_setting("profit_percent")
+        if v not in (None, ""):
+            # الموقع يخزّنها كنسبة مئوية (10) والبوت يستخدمها ككسر (0.10)
+            return float(v) / 100.0
+    except Exception:
+        pass
     try:
         from . import database as _db
         val = _db.get_setting("profit_margin")
@@ -117,7 +134,17 @@ def get_profit_margin() -> float:
 
 
 def get_usd_to_syp() -> float:
-    """سعر تحويل شحن شام كاش دولار → رصيد ل.س. يُقرأ من DB إذا تم ضبطه."""
+    """سعر تحويل الشحن بالدولار → رصيد ل.س.
+    الأولوية: إعدادات الموقع (usd_rate_shamcash ثم usd_rate) ← ثم قاعدة البوت."""
+    try:
+        from . import shared_tx as _sx
+        v = _sx.get_site_setting("usd_rate_shamcash")
+        if v in (None, ""):
+            v = _sx.get_site_setting("usd_rate")
+        if v not in (None, ""):
+            return max(0.0001, float(v))
+    except Exception:
+        pass
     try:
         from . import database as _db
         val = _db.get_setting("usd_to_syp")

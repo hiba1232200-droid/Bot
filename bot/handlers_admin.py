@@ -407,16 +407,16 @@ async def cb_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "admin:profit_margin":
         cur_margin = config.get_profit_margin()
         await q.edit_message_text(
-            "📊 *إدارة هامش الربح*\n"
+            "📊 *هامش الربح*\n"
             "━━━━━━━━━━━━━━━━━\n\n"
-            f"الهامش الحالي: *{cur_margin * 100:.1f}%*\n\n"
-            "📝 أرسل النسبة الجديدة كرقم بين `0` و `100`\n"
-            "_(مثال: أرسل `10` لهامش ربح 10%)_\n\n"
-            "⚠️ سيطبَّق على كل العروض المسعَّرة بالدولار فوراً.",
-            reply_markup=kb.admin_rates_cancel(),
+            f"الهامش المطبَّق حالياً: *{cur_margin * 100:.1f}%*\n\n"
+            "🔗 هذا الإعداد يُدار الآن من *لوحة أدمن الموقع* فقط،\n"
+            "والبوت يقرأه تلقائياً — حتى يبقى السعر موحّداً في الاثنين.\n\n"
+            "_عدّله من الموقع وسيُطبَّق هنا خلال دقيقة._",
+            reply_markup=kb.back_to_admin(),
             parse_mode=ParseMode.MARKDOWN,
         )
-        return ADMIN_PROFIT_MARGIN_SET
+        return ConversationHandler.END
 
     if data == "admin:rates:set_offers":
         cur_rate = config.get_syp_per_usd()
@@ -1711,19 +1711,19 @@ async def _show_rates_panel(q) -> None:
         )
 
     text = (
-        "💱 *إدارة سعر الصرف*\n"
+        "💱 *سعر الصرف* (للعرض فقط)\n"
         "━━━━━━━━━━━━━━━━━\n\n"
         f"📊 *سعر تسعير العروض:*\n"
-        f"   `1 $ = {syp_per_usd:,.0f} ل.س`\n"
-        "   _يُستخدم لحساب أسعار كل عروض المتجر تلقائياً._\n\n"
+        f"   `1 $ = {syp_per_usd:,.0f} ل.س`\n\n"
         f"💵 *سعر شحن الدولار:*\n"
-        f"   `1 $ = {usd_to_syp:,.0f} ل.س`\n"
-        "   _يُستخدم لتحويل مبالغ شام كاش دولار إلى رصيد._\n\n"
+        f"   `1 $ = {usd_to_syp:,.0f} ل.س`\n\n"
         f"📈 *هامش الربح المطبَّق:* `{margin_pct:.1f}%`\n\n"
         "━━━━━━━━━━━━━━━━━\n"
-        f"{status}"
+        f"{status}\n\n"
+        "🔗 *تُدار هذه القيم من لوحة أدمن الموقع فقط،* "
+        "والبوت يقرأها تلقائياً حتى تبقى موحّدة في الاثنين."
     ).replace(",", "،")
-    await q.edit_message_text(text, reply_markup=kb.admin_rates_panel(), parse_mode=ParseMode.MARKDOWN)
+    await q.edit_message_text(text, reply_markup=kb.back_to_admin(), parse_mode=ParseMode.MARKDOWN)
 
 
 def _parse_rate(text: str) -> Optional[int]:

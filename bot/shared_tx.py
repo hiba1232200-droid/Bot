@@ -97,6 +97,48 @@ def claim(tx_code, source: str = "bot", ref: str = "", amount: float = 0.0):
                 pass
 
 
+_settings_cache = {"at": 0.0, "data": {}}
+_SETTINGS_TTL = 60  # ثانية — كاش قصير حتى لا نُثقل قاعدة الموقع
+
+
+def get_site_setting(key: str, default=None):
+    """
+    يقرأ إعداداً من جدول settings في قاعدة الموقع.
+    يُستخدم ليكون الموقع هو المصدر الوحيد لسعر الدولار وهامش الربح.
+    يرجع default إذا لم تكن الميزة مفعّلة أو تعذّر الوصول.
+    """
+    import time
+    if not is_enabled():
+        return default
+
+    now = time.time()
+    if now - _settings_cache["at"] < _SETTINGS_TTL and _settings_cache["data"]:
+        return _settings_cache["data"].get(key, default)
+
+    conn = None
+    try:
+        conn = _connect()
+        with conn.cursor() as cur:
+            cur.execute("SELECT key, value FROM settings")
+            rows = cur.fetchall()
+        data = {str(r[0]): r[1] for r in rows}
+        _settings_cache["data"] = data
+        _settings_cache["at"] = now
+        return data.get(key, default)
+    except Exception as e:
+        logger.warning(f"get_site_setting failed: {e}")
+        # نُبقي الكاش القديم إن وُجد
+        if _settings_cache["data"]:
+            return _settings_cache["data"].get(key, default)
+        return default
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def release(tx_code) -> bool:
     """يحرّر رقم عملية محجوز (يُستخدم عند فشل إضافة الرصيد بعد الحجز)."""
     code = _norm(tx_code)
