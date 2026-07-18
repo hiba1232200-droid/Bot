@@ -279,6 +279,15 @@ def set_price_override(offer_id: str, price: int) -> None:
         conn.commit()
 
 
+def clear_all_price_overrides() -> int:
+    """يمسح كل الأسعار اليدوية فترجع كل العروض للحساب التلقائي. يرجع العدد الممسوح."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM price_overrides")
+        conn.commit()
+        return cur.rowcount
+
+
 def delete_price_override(offer_id: str) -> None:
     """يحذف السعر اليدوي ويرجع العرض للحساب التلقائي."""
     with get_conn() as conn:

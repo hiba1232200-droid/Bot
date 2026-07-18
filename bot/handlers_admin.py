@@ -404,6 +404,45 @@ async def cb_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return ConversationHandler.END
 
+    if data == "admin:clear_overrides":
+        try:
+            n = await asyncio.to_thread(db.count_price_overrides)
+        except Exception:
+            n = 0
+        if not n:
+            await q.edit_message_text(
+                "✅ ما في أسعار يدوية محفوظة — كل الأسعار تتبع سعر الصرف تلقائياً.",
+                reply_markup=kb.back_to_admin(),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return ConversationHandler.END
+        await q.edit_message_text(
+            "⚠️ *تأكيد المسح*\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            f"سيتم مسح *{n}* سعر يدوي.\n\n"
+            "بعد المسح ترجع كل العروض تُحسب تلقائياً من سعر الدولار "
+            "وهامش الربح المضبوطين في الموقع.\n\n"
+            "❗ لا يمكن التراجع.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ نعم، امسحها", callback_data="admin:clear_overrides:yes")],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="admin:rates")],
+            ]),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return ConversationHandler.END
+
+    if data == "admin:clear_overrides:yes":
+        try:
+            n = await asyncio.to_thread(db.clear_all_price_overrides)
+            txt = (f"✅ *تم مسح {n} سعر يدوي.*\n\n"
+                   "كل العروض صارت تُحسب تلقائياً من سعر الدولار وهامش الربح "
+                   "المضبوطين في الموقع.")
+        except Exception as e:
+            logger.warning("clear overrides failed: %s", e)
+            txt = f"❌ تعذّر المسح: `{e}`"
+        await q.edit_message_text(txt, reply_markup=kb.back_to_admin(), parse_mode=ParseMode.MARKDOWN)
+        return ConversationHandler.END
+
     if data == "admin:profit_margin":
         cur_margin = config.get_profit_margin()
         await q.edit_message_text(
@@ -1752,7 +1791,12 @@ async def _show_rates_panel(q) -> None:
         f"{src}"
         f"{ov_txt}"
     ).replace(",", "،")
-    await q.edit_message_text(text, reply_markup=kb.back_to_admin(), parse_mode=ParseMode.MARKDOWN)
+    _kb_rows = []
+    if _ov:
+        _kb_rows.append([InlineKeyboardButton(
+            f"🧹 امسح الأسعار اليدوية ({_ov})", callback_data="admin:clear_overrides")])
+    _kb_rows.append([InlineKeyboardButton("⬅️ رجوع للوحة الأدمن", callback_data="admin:panel")])
+    await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(_kb_rows), parse_mode=ParseMode.MARKDOWN)
 
 
 def _parse_rate(text: str) -> Optional[int]:
