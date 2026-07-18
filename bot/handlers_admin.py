@@ -404,6 +404,38 @@ async def cb_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return ConversationHandler.END
 
+    if data == "admin:sync_costs":
+        await q.edit_message_text("⏳ جاري جلب التكاليف الحيّة من FastCard...")
+        try:
+            from . import fastcard as _fc
+            prods = await asyncio.to_thread(_fc.get_products)
+            costs = {}
+            for p in (prods or []):
+                pid = p.get("id")
+                c = p.get("cost")
+                if c in (None, "", 0):
+                    c = p.get("price")
+                try:
+                    c = float(c or 0)
+                except Exception:
+                    c = 0.0
+                if pid and c > 0:
+                    costs[str(pid)] = c
+            n = await asyncio.to_thread(db.set_cost_overrides, costs)
+            txt = (
+                "✅ *تمت مزامنة التكاليف*\n"
+                "━━━━━━━━━━━━━━━━━\n\n"
+                f"📦 منتجات مقروءة من FastCard: *{len(prods or [])}*\n"
+                f"💾 تكاليف محفوظة: *{n}*\n\n"
+                "صارت أسعار البوت تُحسب من نفس التكلفة الحيّة التي يستخدمها الموقع، "
+                "فتتطابق الأسعار في الاثنين."
+            )
+        except Exception as e:
+            logger.warning("sync costs failed: %s", e)
+            txt = f"❌ تعذّرت المزامنة: `{e}`\n\nحاول بعد قليل (خادم FastCard أحياناً بطيء)."
+        await q.edit_message_text(txt, reply_markup=kb.back_to_admin(), parse_mode=ParseMode.MARKDOWN)
+        return ConversationHandler.END
+
     if data == "admin:clear_overrides":
         try:
             n = await asyncio.to_thread(db.count_price_overrides)
@@ -1777,6 +1809,16 @@ async def _show_rates_panel(q) -> None:
         ov_txt = (f"\n\n⚠️ *يوجد {_ov} سعر يدوي محفوظ* — هذي الأسعار "
                   "لا تتأثر بسعر الصرف إطلاقاً. امسحها إذا بدك الأسعار تتبع السعر تلقائياً.")
 
+    try:
+        _cc = await asyncio.to_thread(db.count_cost_overrides)
+    except Exception:
+        _cc = 0
+    if _cc:
+        cost_txt = f"\n\n✅ *التكاليف الحيّة مزامَنة* ({_cc} منتج) — الأسعار تطابق الموقع."
+    else:
+        cost_txt = ("\n\n⚠️ *التكاليف غير مزامَنة* — البوت يستخدم تكاليف قديمة مكتوبة بالكود، "
+                    "فتطلع أسعاره أرخص من الموقع. اضغط زر المزامنة تحت.")
+
     text = (
         "💱 *سعر الصرف* (للعرض فقط)\n"
         "━━━━━━━━━━━━━━━━━\n\n"
@@ -1789,9 +1831,11 @@ async def _show_rates_panel(q) -> None:
         f"{status}\n\n"
         "━━━━━━━━━━━━━━━━━\n"
         f"{src}"
+        f"{cost_txt}"
         f"{ov_txt}"
     ).replace(",", "،")
-    _kb_rows = []
+    _kb_rows = [[InlineKeyboardButton("🔄 مزامنة التكاليف من FastCard",
+                                      callback_data="admin:sync_costs")]]
     if _ov:
         _kb_rows.append([InlineKeyboardButton(
             f"🧹 امسح الأسعار اليدوية ({_ov})", callback_data="admin:clear_overrides")])

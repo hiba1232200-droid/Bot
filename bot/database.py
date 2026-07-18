@@ -77,6 +77,14 @@ def init_db():
                 consumed_at TEXT
             )
         """)
+        # تكاليف FastCard الحيّة (تُزامَن من لوحة الأدمن) — تتجاوز cost_usd الثابت في config
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS cost_overrides (
+                product_id TEXT PRIMARY KEY,
+                cost REAL,
+                updated_at TEXT
+            )
+        """)
         # جدول موحّد لأرقام العمليات كنص خام (نفس صيغة الموقع)
         # يمنع تكرار نفس رقم العملية داخل البوت، ويسمح للموقع بالاستعلام عنه.
         cur.execute("""
@@ -277,6 +285,54 @@ def set_price_override(offer_id: str, price: int) -> None:
             (offer_id, int(price), now_iso()),
         )
         conn.commit()
+
+
+def get_cost_override(product_id) -> Optional[float]:
+    """يرجع التكلفة الحيّة المخزّنة لمنتج FastCard، أو None."""
+    if not product_id:
+        return None
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT cost FROM cost_overrides WHERE product_id = ?", (str(product_id),))
+            row = cur.fetchone()
+            if row and row["cost"] is not None:
+                c = float(row["cost"])
+                return c if c > 0 else None
+    except sqlite3.Error:
+        pass
+    return None
+
+
+def set_cost_overrides(costs: Dict[str, float]) -> int:
+    """يخزّن التكاليف الحيّة (product_id → cost). يرجع عدد المحفوظ."""
+    n = 0
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for pid, cost in costs.items():
+            try:
+                cur.execute(
+                    "INSERT INTO cost_overrides (product_id, cost, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(product_id) DO UPDATE SET cost = excluded.cost, "
+                    "updated_at = excluded.updated_at",
+                    (str(pid), float(cost), now_iso()),
+                )
+                n += 1
+            except Exception:
+                continue
+        conn.commit()
+    return n
+
+
+def count_cost_overrides() -> int:
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) AS c FROM cost_overrides")
+            row = cur.fetchone()
+            return int(row["c"] or 0)
+    except Exception:
+        return 0
 
 
 def clear_all_price_overrides() -> int:

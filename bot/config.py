@@ -193,7 +193,18 @@ def get_offer_price(offer: dict) -> int:
     cost_usd = offer.get("cost_usd")
     if not cost_usd:
         return base_price
-    # 3) العروض المرتبطة بالدولار → نحسب من cost_usd مع هامش الربح الحالي
+    # 3) العروض المرتبطة بالدولار → نحسب من التكلفة مع هامش الربح الحالي
+    # نفضّل التكلفة الحيّة المزامَنة من FastCard (مثل الموقع تماماً)،
+    # وإذا ما فيه، نستخدم cost_usd الثابت المكتوب هنا.
+    pid = offer.get("product_id")
+    if pid:
+        try:
+            from . import database as _db
+            live = _db.get_cost_override(pid)
+            if live:
+                cost_usd = live
+        except Exception:
+            pass
     qty = offer.get("qty", 1) or 1
     current_rate = get_syp_per_usd()
     cost_syp = float(cost_usd) * qty * current_rate
